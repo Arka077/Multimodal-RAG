@@ -342,7 +342,7 @@ def main():
         kb = st.session_state.kb_manager
         st.session_state.rag_agent = RAGAgent(
             gemini_client=kb.gemini,
-            retriever=st.session_state. retriever,
+            retriever=st.session_state.retriever,
             chunk_lookup=kb.chunk_lookup
         )
     
@@ -371,7 +371,7 @@ def main():
         # Stats
         kb = st.session_state.kb_manager
         st.metric("📦 Total Chunks", len(kb.chunks))
-        st.metric("🔢 Vector Index", kb.vector_store.index. ntotal if kb.vector_store. index else 0)
+        st.metric("🔢 Vector Index", kb.vector_store.index.ntotal if kb.vector_store.index else 0)
         st.metric("🕸️ KG Nodes", kb.knowledge_graph.number_of_nodes())
     
     # Main content based on selected tab
