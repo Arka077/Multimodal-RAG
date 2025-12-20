@@ -18,32 +18,38 @@ class KnowledgeBaseManager:
     """Manage the entire knowledge base"""
     
     def __init__(self, auto_clear: bool = False):
-        # Auto-clear if requested
-        if auto_clear:
-            self._clear_all_data()
-        
-        # Clients
-        self.gemini = GeminiClient()
-        self.whisper = WhisperClient()
-        
-        # Core components
-        self.doc_processor = DocumentProcessor(self.gemini, self.whisper)
-        self.embedding_manager = EmbeddingManager()
-        self.kg_builder = KnowledgeGraphBuilder()  # No longer needs Gemini client
-        
-        # Storage
-        self.chunks = []
-        self.chunk_lookup = {}
-        self.parent_child_map = {}
-        self.node_metadata = {}
-        self.knowledge_graph = nx.DiGraph()
-        
-        # Retrieval components
-        self.vector_store = VectorStore(self.embedding_manager)
-        self.bm25_search = BM25Search()
-        
-        # Load existing data
-        self.load_from_disk()
+        try:
+            # Auto-clear if requested
+            if auto_clear:
+                self._clear_all_data()
+            
+            # Clients
+            self.gemini = GeminiClient()
+            self.whisper = WhisperClient()
+            
+            # Core components
+            self.doc_processor = DocumentProcessor(self.gemini, self.whisper)
+            self.embedding_manager = EmbeddingManager()
+            self.kg_builder = KnowledgeGraphBuilder()  # No longer needs Gemini client
+            
+            # Storage
+            self.chunks = []
+            self.chunk_lookup = {}
+            self.parent_child_map = {}
+            self.node_metadata = {}
+            self.knowledge_graph = nx.DiGraph()
+            
+            # Retrieval components
+            self.vector_store = VectorStore(self.embedding_manager)
+            self.bm25_search = BM25Search()
+            
+            # Load existing data
+            self.load_from_disk()
+        except Exception as e:
+            import traceback
+            print(f"ERROR in KnowledgeBaseManager.__init__:  {e}")
+            print(traceback.format_exc())
+            raise
     
     def load_from_disk(self):
         print("Loading knowledge base from disk...")
