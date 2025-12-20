@@ -2,6 +2,17 @@
 Streamlit web interface for the RAG system
 """
 import os
+import sys
+
+# Configure writable cache directories for Streamlit Cloud
+os.environ['RAPIDOCR_HOME'] = '/tmp/rapidocr'
+os.environ['HF_HOME'] = '/tmp/huggingface'
+os.environ['TORCH_HOME'] = '/tmp/torch'
+os.environ['XDG_CACHE_HOME'] = '/tmp/cache'
+
+# Create directories if they don't exist
+for dir_path in ['/tmp/rapidocr', '/tmp/huggingface', '/tmp/torch', '/tmp/cache']:
+    os. makedirs(dir_path, exist_ok=True)
 import re
 import streamlit as st
 from typing import Dict, List
