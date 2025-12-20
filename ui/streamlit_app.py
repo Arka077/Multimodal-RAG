@@ -95,17 +95,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# Initialize session state
-if 'messages' not in st.session_state:
-    st.session_state.messages = []
-
-if 'current_session_id' not in st.session_state:
-    st.session_state.current_session_id = st.session_state.chat_manager.create_new_session()
-
-if 'citation_map' not in st.session_state:
-    st.session_state.citation_map = {}
-
-
 def get_image_base64(image_path: str) -> str:
     try:
         with open(image_path, "rb") as img_file:
@@ -353,7 +342,7 @@ def main():
         kb = st.session_state.kb_manager
         st.session_state.rag_agent = RAGAgent(
             gemini_client=kb.gemini,
-            retriever=st.session_state. retriever,
+            retriever=st.session_state.retriever,
             chunk_lookup=kb.chunk_lookup
         )
     
@@ -382,7 +371,7 @@ def main():
         # Stats
         kb = st.session_state.kb_manager
         st.metric("📦 Total Chunks", len(kb.chunks))
-        st.metric("🔢 Vector Index", kb.vector_store.index. ntotal if kb.vector_store. index else 0)
+        st.metric("🔢 Vector Index", kb.vector_store.index.ntotal if kb.vector_store.index else 0)
         st.metric("🕸️ KG Nodes", kb.knowledge_graph.number_of_nodes())
     
     # Main content based on selected tab
