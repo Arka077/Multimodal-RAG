@@ -347,6 +347,9 @@ def add_files(files):
 
 # Main App
 def main():
+    # Initialize session state
+    if 'kb_manager' not in st.session_state:
+        st.session_state. kb_manager = KnowledgeBaseManager()
     
     # Header
     st.title("💬 Enhanced Multimodal RAG System")
