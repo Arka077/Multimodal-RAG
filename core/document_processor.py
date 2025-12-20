@@ -54,10 +54,25 @@ class DocumentProcessor:
     
     def _process_pdf(self, pdf_path: Path) -> List[Dict[str, Any]]:
         elements = []
-        
+    
         try:
             print(f"   ⏳ Converting PDF (this may take 5-10 minutes for large files)...")
-            doc_converter = DocumentConverter()
+            
+            # Configure docling to use Tesseract instead of RapidOCR
+            from docling. datamodel. pipeline_options import PdfPipelineOptions
+            from docling. document_converter import DocumentConverter, PdfFormatOption
+            
+            # Set pipeline options to use tesseract (installed via packages. txt)
+            pipeline_options = PdfPipelineOptions()
+            pipeline_options. do_ocr = True
+            pipeline_options.ocr_options.engine = "tesseract"  # Use tesseract instead of rapidocr
+            
+            doc_converter = DocumentConverter(
+                format_options={
+                    "pdf":  PdfFormatOption(pipeline_options=pipeline_options)
+                }
+            )
+            
             result = doc_converter.convert(str(pdf_path))
             print(f"   ✅ PDF conversion complete")
             
