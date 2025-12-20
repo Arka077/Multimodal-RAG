@@ -22,6 +22,7 @@ rank-bm25==0.2.2
 spacy==3.7.5
 thinc==8.2.5
 en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl
+nltk>=3.8.1
 
 # Audio Processing
 pydub==0.25.1
