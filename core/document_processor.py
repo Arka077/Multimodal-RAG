@@ -1,6 +1,8 @@
 """
 Document processing for PDF, images, and audio files
 """
+import gc
+import psutil
 from pathlib import Path
 from typing import List, Dict, Any
 from uuid import uuid4
@@ -24,32 +26,82 @@ class DocumentProcessor:
         self.gemini = gemini_client
         self.whisper = whisper_client
     
+    def _log_memory_usage(self, label: str):
+        """Log current memory usage"""
+        try:
+            process = psutil.Process()
+            memory_info = process.memory_info()
+            memory_mb = memory_info.rss / 1024 / 1024
+            print(f"   💾 Memory usage ({label}): {memory_mb:.1f} MB")
+        except Exception as e:
+            print(f"   ⚠️  Could not get memory usage: {e}")
+    
     def process_files(self, file_paths: List[str]) -> List[Dict[str, Any]]:
         all_chunks = []
         
         print(f"\n📄 Processing {len(file_paths)} files...")
-        for idx, file_path in enumerate(file_paths, 1):
+        self._log_memory_usage("start")
+        
+        # Batch files by type for efficient memory usage
+        audio_files = []
+        pdf_files = []
+        image_files = []
+        
+        for file_path in file_paths:
             file_path = Path(file_path)
-            
-            print(f"\n[{idx}/{len(file_paths)}] Processing: {file_path.name}")
-            
-            if file_path.suffix.lower() == ".pdf":
-                chunks = self._process_pdf(file_path)
-            elif file_path.suffix.lower() in [".wav", ".mp3", ".flac", ".m4a"]:
-                chunks = self._process_audio(file_path)
+            if file_path.suffix.lower() in [".wav", ".mp3", ".flac", ".m4a"]:
+                audio_files.append(file_path)
+            elif file_path.suffix.lower() == ".pdf":
+                pdf_files.append(file_path)
             elif file_path.suffix.lower() in [".png", ".jpg", ".jpeg"]:
-                chunks = self._process_image(file_path)
+                image_files.append(file_path)
             else:
                 print(f"   ❌ Unsupported file type: {file_path.suffix}")
-                continue
+        
+        # Process audio files first (if any), then unload Whisper
+        if audio_files:
+            print(f"\n🎵 Processing {len(audio_files)} audio files...")
+            for idx, file_path in enumerate(audio_files, 1):
+                print(f"\n[{idx}/{len(audio_files)}] Processing: {file_path.name}")
+                chunks = self._process_audio(file_path)
+                if chunks:
+                    print(f"   ✅ Created {len(chunks)} chunks")
+                    all_chunks.extend(chunks)
+                else:
+                    print(f"   ⚠️  No chunks created from this file")
             
-            if chunks:
-                print(f"   ✅ Created {len(chunks)} chunks")
-                all_chunks.extend(chunks)
-            else:
-                print(f"   ⚠️  No chunks created from this file")
+            # Unload Whisper model after processing all audio files
+            self.whisper.unload_model()
+            gc.collect()
+            self._log_memory_usage("after audio processing")
+        
+        # Process PDF files
+        if pdf_files:
+            print(f"\n📄 Processing {len(pdf_files)} PDF files...")
+            for idx, file_path in enumerate(pdf_files, 1):
+                print(f"\n[{idx}/{len(pdf_files)}] Processing: {file_path.name}")
+                chunks = self._process_pdf(file_path)
+                if chunks:
+                    print(f"   ✅ Created {len(chunks)} chunks")
+                    all_chunks.extend(chunks)
+                else:
+                    print(f"   ⚠️  No chunks created from this file")
+                self._log_memory_usage(f"after PDF {idx}/{len(pdf_files)}")
+        
+        # Process image files
+        if image_files:
+            print(f"\n🖼️  Processing {len(image_files)} image files...")
+            for idx, file_path in enumerate(image_files, 1):
+                print(f"\n[{idx}/{len(image_files)}] Processing: {file_path.name}")
+                chunks = self._process_image(file_path)
+                if chunks:
+                    print(f"   ✅ Created {len(chunks)} chunks")
+                    all_chunks.extend(chunks)
+                else:
+                    print(f"   ⚠️  No chunks created from this file")
         
         print(f"\n✅ Total chunks created: {len(all_chunks)}")
+        self._log_memory_usage("end")
         return all_chunks
     
     def _process_pdf(self, pdf_path: Path) -> List[Dict[str, Any]]:
@@ -57,24 +109,27 @@ class DocumentProcessor:
     
         try:
             print(f"   ⏳ Converting PDF (this may take 5-10 minutes for large files)...")
+            self._log_memory_usage("before PDF conversion")
             
-            # Configure docling to disable OCR to avoid RapidOCR permission issues
-            from docling.datamodel. pipeline_options import PdfPipelineOptions
-            from docling. document_converter import DocumentConverter, PdfFormatOption
+            # Configure docling to disable OCR and table structure to avoid memory issues
+            from docling.datamodel.pipeline_options import PdfPipelineOptions
+            from docling.document_converter import DocumentConverter, PdfFormatOption
             
             pipeline_options = PdfPipelineOptions()
-            pipeline_options. do_ocr = False  # Disable OCR entirely
+            pipeline_options.do_ocr = False  # Disable OCR to avoid RapidOCR permission issues
+            pipeline_options.do_table_structure = False  # Disable table structure to avoid TableFormer loading
             
             doc_converter = DocumentConverter(
                 format_options={
-                    "pdf":  PdfFormatOption(pipeline_options=pipeline_options)
+                    "pdf": PdfFormatOption(pipeline_options=pipeline_options)
                 }
             )
             
             result = doc_converter.convert(str(pdf_path))
             print(f"   ✅ PDF conversion complete")
+            self._log_memory_usage("after PDF conversion")
             
-            full_text = result.document. export_to_markdown()
+            full_text = result.document.export_to_markdown()
             
             # Track chunks by page for screenshot generation
             chunks_by_page = defaultdict(list)
@@ -163,6 +218,8 @@ class DocumentProcessor:
     
     def _process_audio(self, audio_path: Path) -> List[Dict[str, Any]]:
         print(f"   🎵 Transcribing audio with Whisper...")
+        self._log_memory_usage("before audio transcription")
+        
         transcription, wav_path = self.whisper.transcribe_audio(str(audio_path))
         
         if transcription == "Transcription failed":
@@ -170,6 +227,7 @@ class DocumentProcessor:
             return []
         
         print(f"   ✅ Transcription complete")
+        self._log_memory_usage("after audio transcription")
         
         elements = []
         parent_id = str(uuid4())

@@ -67,7 +67,7 @@ class Settings:
     PARENT_CHILD_MAP_PATH: Path = BASE_DIR / "parent_child_map.json"
     
     # Model Configuration
-    WHISPER_MODEL_SIZE: str = "base"
+    WHISPER_MODEL_SIZE: str = "tiny"
     EMBEDDING_MODEL: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"  # Local HuggingFace model
     CROSS_ENCODER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     SPACY_MODEL: str = "en_core_web_sm"

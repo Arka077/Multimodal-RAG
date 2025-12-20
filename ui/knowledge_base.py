@@ -25,6 +25,7 @@ class KnowledgeBaseManager:
             
             # Clients
             self.gemini = GeminiClient()
+            # Initialize Whisper client (model will be loaded lazily on first use)
             self.whisper = WhisperClient()
             
             # Core components
