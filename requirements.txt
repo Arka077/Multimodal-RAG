@@ -1,44 +1,44 @@
 # Core AI/ML Libraries
-google-generativeai>=0.3.0
-langchain>=0.1.0
-langgraph>=0.0.20
-langchain-google-genai>=0.0.5
-openai-whisper>=20231117
+google-generativeai==0.8.6
+langchain==1.2.0
+langgraph==1.0.5
+langchain-google-genai==4.1.1
+openai-whisper==20250625
 
 # Document Processing
-docling>=1.0.0
-docling-core>=1.0.0
-pdf2image>=1.16.0
-pytesseract>=0.3.10
-pillow>=10.0.0
-pillow-avif-plugin>=1.0.0
+docling==2.65.0
+docling-core==2.57.0
+pdf2image==1.17.0
+pytesseract==0.3.13
+pillow==11.3.0
+pillow-avif-plugin==1.5.2
 
 # Vector Store & Search
-faiss-cpu>=1.7.4
-sentence-transformers>=2.2.0,<3.0.0
-rank-bm25>=0.2.2
+faiss-cpu==1.13.1
+sentence-transformers==5.2.0
+rank-bm25==0.2.2
 
 # NLP - with pinned versions for compatibility
-spacy>=3.7.0,<3.8.0
-thinc>=8.2.0,<8.3.0
+spacy==3.7.5
+thinc==8.2.5
 en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl
 
 # Audio Processing
-pydub>=0.25.1
-soundfile>=0.12.1
-mutagen>=1.47.0
+pydub==0.25.1
+soundfile==0.13.1
+mutagen==1.47.0
 
 # Graph & Visualization
-networkx>=3.0
-pyvis>=0.3.2
-plotly>=5.18.0
-umap-learn>=0.5.6
+networkx==3.6.1
+pyvis==0.3.2
+plotly==6.5.0
+umap-learn==0.5.9.post2
 
 # Web Interface
-streamlit>=1.28.0
+streamlit==1.52.2
 
 # Utilities
-pandas>=2.0.0,<2.3.0
-numpy>=1.24.0,<2.0.0
-tqdm>=4.66.0
-python-dotenv>=1.0.0
+pandas==2.3.3
+numpy==1.26.4
+tqdm==4.67.1
+python-dotenv==1.2.1
