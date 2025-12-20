@@ -25,7 +25,7 @@ class KnowledgeBaseManager:
             
             # Clients
             self.gemini = GeminiClient()
-            # Don't initialize Whisper at startup - use lazy loading
+            # Initialize Whisper client (model will be loaded lazily on first use)
             self.whisper = WhisperClient()
             
             # Core components
