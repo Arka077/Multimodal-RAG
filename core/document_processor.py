@@ -58,14 +58,12 @@ class DocumentProcessor:
         try:
             print(f"   ⏳ Converting PDF (this may take 5-10 minutes for large files)...")
             
-            # Configure docling to use Tesseract instead of RapidOCR
-            from docling. datamodel. pipeline_options import PdfPipelineOptions
+            # Configure docling to disable OCR to avoid RapidOCR permission issues
+            from docling.datamodel. pipeline_options import PdfPipelineOptions
             from docling. document_converter import DocumentConverter, PdfFormatOption
             
-            # Set pipeline options to use tesseract (installed via packages. txt)
             pipeline_options = PdfPipelineOptions()
-            pipeline_options. do_ocr = True
-            pipeline_options.ocr_options.engine = "tesseract"  # Use tesseract instead of rapidocr
+            pipeline_options. do_ocr = False  # Disable OCR entirely
             
             doc_converter = DocumentConverter(
                 format_options={
@@ -76,7 +74,7 @@ class DocumentProcessor:
             result = doc_converter.convert(str(pdf_path))
             print(f"   ✅ PDF conversion complete")
             
-            full_text = result.document.export_to_markdown()
+            full_text = result.document. export_to_markdown()
             
             # Track chunks by page for screenshot generation
             chunks_by_page = defaultdict(list)
