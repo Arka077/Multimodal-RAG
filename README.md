@@ -1,6 +1,10 @@
 # Enhanced Multimodal RAG System
 
+🚀 **[Live Demo: Try it now!](https://multimodal-docs-analyser.streamlit.app)** 🚀
+
 A production-ready Retrieval-Augmented Generation (RAG) system powered by **Gemini API**, **LangChain**, and **LangGraph** for multimodal document understanding and question answering.
+
+> 💡 **Quick Access:** The application is deployed and accessible at: **https://multimodal-docs-analyser.streamlit.app**
 
 ## 🌟 Features
 
@@ -64,7 +68,13 @@ Rag/
 
 ## 🚀 Quick Start
 
-### 1. Installation
+### Option 1: Use the Deployed App (Recommended)
+
+Simply visit **[https://multimodal-docs-analyser.streamlit.app](https://multimodal-docs-analyser.streamlit.app)** to start using the application immediately!
+
+### Option 2: Local Installation
+
+#### 1. Installation
 
 ```bash
 # Clone or navigate to the project directory
@@ -91,7 +101,7 @@ brew install tesseract poppler
 # Windows: Download from official websites
 ```
 
-### 2. Configuration
+#### 2. Configuration
 
 Edit `config/settings.py` to set your API key:
 
@@ -99,7 +109,7 @@ Edit `config/settings.py` to set your API key:
 GEMINI_API_KEY: str = "YOUR_GEMINI_API_KEY_HERE"
 ```
 
-### 3. Run the Application
+#### 3. Run the Application
 
 ```bash
 streamlit run streamlit_app.py
@@ -250,9 +260,12 @@ logging.basicConfig(level=logging.DEBUG)
 
 ## ☁️ Cloud Deployment
 
-### Streamlit Cloud (Recommended)
+### Live Deployment
 
-Deploy your RAG system to the cloud for free:
+✨ **This application is already deployed and accessible at:**
+### **[https://multimodal-docs-analyser.streamlit.app](https://multimodal-docs-analyser.streamlit.app)**
+
+### Deploy Your Own Instance on Streamlit Cloud
 
 1. **Push to GitHub:**
    ```bash
@@ -300,5 +313,7 @@ Contributions welcome! Areas for improvement:
 For issues and questions, please open an issue in the repository.
 
 ---
+
+🌐 **Live Demo:** [multimodal-docs-analyser.streamlit.app](https://multimodal-docs-analyser.streamlit.app)
 
 Built with ❤️ using Gemini, LangChain, and LangGraph
