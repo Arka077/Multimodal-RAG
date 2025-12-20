@@ -29,7 +29,7 @@ soundfile==0.13.1
 mutagen==1.47.0
 
 # Graph & Visualization
-networkx==3.6.1
+networkx==2.8.8
 pyvis==0.3.2
 plotly==6.5.0
 umap-learn==0.5.9.post2
