@@ -2,24 +2,50 @@
 Main entry point for Streamlit Cloud deployment
 This file must be named 'streamlit_app.py' and located in the project root
 """
-import sys
-from pathlib import Path
 import os
+import sys
+import traceback
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Set environment variables BEFORE any other imports
+os.environ['RAPIDOCR_HOME'] = '/tmp/rapidocr'
+os. environ['HF_HOME'] = '/tmp/huggingface'
+os.environ['TORCH_HOME'] = '/tmp/torch'
+os.environ['XDG_CACHE_HOME'] = '/tmp/cache'
 
-# Set up environment for Streamlit Cloud
-if 'GOOGLE_API_KEY' not in os.environ:
+# Create directories
+for dir_path in ['/tmp/rapidocr', '/tmp/huggingface', '/tmp/torch', '/tmp/cache']:
+    os.makedirs(dir_path, exist_ok=True)
+
+# Suppress warnings
+import warnings
+warnings.filterwarnings('ignore')
+
+# Now import streamlit and handle errors
+try:
+    import streamlit as st
+    
+    # Show that we got this far
+    st.write("🔄 Loading application...")
+    
+    # Import the main app
+    from ui. streamlit_app import main
+    
+    if __name__ == "__main__": 
+        try:
+            main()
+        except Exception as e:
+            st. error(f"❌ **Error in main():** {str(e)}")
+            st.code(traceback.format_exc())
+            
+except Exception as e:
+    # If streamlit isn't even available, print to console
+    print(f"FATAL ERROR: {e}")
+    print(traceback.format_exc())
+    
+    # Try to show in streamlit if possible
     try:
         import streamlit as st
-        if hasattr(st, 'secrets') and 'GOOGLE_API_KEY' in st.secrets.get('general', {}):
-            os.environ['GOOGLE_API_KEY'] = st.secrets['general']['GOOGLE_API_KEY']
+        st. error(f"❌ **Fatal Error:** {str(e)}")
+        st.code(traceback.format_exc())
     except:
         pass
-
-# Import and run the Streamlit app
-from ui.streamlit_app import main
-
-if __name__ == "__main__":
-    main()
