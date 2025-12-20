@@ -321,13 +321,23 @@ def add_files(files):
 
 # Main App
 def main():
-    # Initialize ALL session state variables
-    if 'kb_manager' not in st. session_state:
-        st. session_state.kb_manager = KnowledgeBaseManager(auto_clear=True)
-
+    # Initialize ALL session state variables IN THE CORRECT ORDER
+    if 'kb_manager' not in st.session_state:
+        st.session_state.kb_manager = KnowledgeBaseManager(auto_clear=True)
+    
     if 'chat_manager' not in st.session_state:
-        st.session_state. chat_manager = ChatSessionManager()
-
+        st.session_state.chat_manager = ChatSessionManager()
+    
+    if 'messages' not in st.session_state:
+        st.session_state.messages = []
+    
+    if 'current_session_id' not in st.session_state:
+        # NOW chat_manager exists, so we can use it
+        st.session_state.current_session_id = st.session_state.chat_manager.create_new_session()
+    
+    if 'citation_map' not in st.session_state:
+        st.session_state.citation_map = {}
+    
     if 'retriever' not in st.session_state:
         kb = st.session_state.kb_manager
         st.session_state.retriever = HybridRetriever(
@@ -338,25 +348,16 @@ def main():
             chunk_lookup=kb.chunk_lookup,
             parent_child_map=kb.parent_child_map
         )
-
-    if 'rag_agent' not in st. session_state:
+    
+    if 'rag_agent' not in st.session_state:
         kb = st.session_state.kb_manager
         st.session_state.rag_agent = RAGAgent(
             gemini_client=kb.gemini,
             retriever=st.session_state. retriever,
             chunk_lookup=kb.chunk_lookup
         )
-
-    if 'messages' not in st.session_state:
-        st.session_state.messages = []
-
-    if 'current_session_id' not in st.session_state:
-        st.session_state.current_session_id = st.session_state.chat_manager.create_new_session()
-
-    if 'citation_map' not in st.session_state:
-        st.session_state.citation_map = {}
     
-    # Header
+    # NOW start your UI code
     st.title("💬 Enhanced Multimodal RAG System")
     st.caption("*Powered by Gemini API, LangChain & LangGraph*")
     
@@ -381,13 +382,13 @@ def main():
         # Stats
         kb = st.session_state.kb_manager
         st.metric("📦 Total Chunks", len(kb.chunks))
-        st.metric("🔢 Vector Index", kb.vector_store.index.ntotal if kb.vector_store.index else 0)
+        st.metric("🔢 Vector Index", kb.vector_store.index. ntotal if kb.vector_store. index else 0)
         st.metric("🕸️ KG Nodes", kb.knowledge_graph.number_of_nodes())
     
     # Main content based on selected tab
-    if tab_selection == "💬 Chat":
+    if tab_selection == "💬 Chat": 
         render_chat_tab()
-    elif tab_selection == "📚 Knowledge Base":
+    elif tab_selection == "📚 Knowledge Base": 
         render_knowledge_base_tab()
     elif tab_selection == "💾 Chat History":
         render_chat_history_tab()
@@ -397,7 +398,6 @@ def main():
         render_knowledge_graph_tab()
     elif tab_selection == "📊 Embeddings":
         render_embeddings_tab()
-
 
 def render_chat_tab():
     
