@@ -96,32 +96,6 @@ st.markdown("""
 
 
 # Initialize session state
-if 'kb_manager' not in st.session_state:
-    # Auto-clear knowledge base on app load
-    st.session_state.kb_manager = KnowledgeBaseManager(auto_clear=True)
-
-if 'chat_manager' not in st.session_state:
-    st.session_state.chat_manager = ChatSessionManager()
-
-if 'retriever' not in st.session_state:
-    kb = st.session_state.kb_manager
-    st.session_state.retriever = HybridRetriever(
-        vector_store=kb.vector_store,
-        bm25_search=kb.bm25_search,
-        knowledge_graph=kb.knowledge_graph,
-        node_metadata=kb.node_metadata,
-        chunk_lookup=kb.chunk_lookup,
-        parent_child_map=kb.parent_child_map
-    )
-
-if 'rag_agent' not in st.session_state:
-    kb = st.session_state.kb_manager
-    st.session_state.rag_agent = RAGAgent(
-        gemini_client=kb.gemini,
-        retriever=st.session_state.retriever,
-        chunk_lookup=kb.chunk_lookup
-    )
-
 if 'messages' not in st.session_state:
     st.session_state.messages = []
 
@@ -347,9 +321,40 @@ def add_files(files):
 
 # Main App
 def main():
-    # Initialize session state
-    if 'kb_manager' not in st.session_state:
-        st.session_state. kb_manager = KnowledgeBaseManager()
+    # Initialize ALL session state variables
+    if 'kb_manager' not in st. session_state:
+        st. session_state.kb_manager = KnowledgeBaseManager(auto_clear=True)
+
+    if 'chat_manager' not in st.session_state:
+        st.session_state. chat_manager = ChatSessionManager()
+
+    if 'retriever' not in st.session_state:
+        kb = st.session_state.kb_manager
+        st.session_state.retriever = HybridRetriever(
+            vector_store=kb.vector_store,
+            bm25_search=kb.bm25_search,
+            knowledge_graph=kb.knowledge_graph,
+            node_metadata=kb.node_metadata,
+            chunk_lookup=kb.chunk_lookup,
+            parent_child_map=kb.parent_child_map
+        )
+
+    if 'rag_agent' not in st. session_state:
+        kb = st.session_state.kb_manager
+        st.session_state.rag_agent = RAGAgent(
+            gemini_client=kb.gemini,
+            retriever=st.session_state. retriever,
+            chunk_lookup=kb.chunk_lookup
+        )
+
+    if 'messages' not in st.session_state:
+        st.session_state.messages = []
+
+    if 'current_session_id' not in st.session_state:
+        st.session_state.current_session_id = st.session_state.chat_manager.create_new_session()
+
+    if 'citation_map' not in st.session_state:
+        st.session_state.citation_map = {}
     
     # Header
     st.title("💬 Enhanced Multimodal RAG System")
