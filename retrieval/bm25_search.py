@@ -12,7 +12,10 @@ try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
     nltk.download('punkt', quiet=True)
-
+try:
+    nltk.data.find('tokenizers/punkt_tab')
+except LookupError: 
+    nltk.download('punkt_tab', quiet=True)
 
 class BM25Search:
     """BM25-based keyword search with stemming and fuzzy matching"""
