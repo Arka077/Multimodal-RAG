@@ -1,15 +1,16 @@
 """
-Knowledge graph extraction and management using rule-based methods
+Knowledge graph extraction and management using rule-based methods with enhanced consolidation
 """
 import re
 import json
 import networkx as nx
 import spacy
-from collections import defaultdict
+from collections import defaultdict, Counter
 from typing import List, Dict, Tuple, Any, Set
 from pathlib import Path
 from tqdm.auto import tqdm
 from difflib import SequenceMatcher
+import numpy as np
 
 from config.settings import settings
 
@@ -64,6 +65,327 @@ class NodeMetadataTracker:
         }
 
 
+class EdgeConsolidator:
+    """Consolidate and merge similar edges in the knowledge graph"""
+    
+    def __init__(self, nlp):
+        self.nlp = nlp
+        
+        # Predicate synonym mapping for normalization
+        self.predicate_synonyms = {
+            # Causal relationships
+            'cause': ['causes', 'caused', 'causing', 'lead', 'leads', 'led', 'leading', 
+                     'result', 'results', 'resulted', 'resulting', 'trigger', 'triggers', 
+                     'triggered', 'produce', 'produces', 'produced', 'drive', 'drives', 
+                     'driven', 'contribute', 'contributes', 'contributed'],
+            
+            # Effect relationships
+            'affect': ['affects', 'affected', 'affecting', 'impact', 'impacts', 'impacted', 
+                      'impacting', 'influence', 'influences', 'influenced', 'influencing'],
+            
+            # Change relationships
+            'change': ['changes', 'changed', 'changing', 'alter', 'alters', 'altered', 
+                      'altering', 'modify', 'modifies', 'modified', 'modifying', 'transform', 
+                      'transforms', 'transformed'],
+            
+            # Composition relationships
+            'part_of': ['include', 'includes', 'included', 'including', 'contain', 'contains', 
+                       'contained', 'containing', 'consist', 'consists', 'composed', 'comprise', 
+                       'comprises', 'made_of'],
+            
+            # Attribute relationships
+            'has_attribute': ['is', 'are', 'was', 'were', 'be', 'been', 'being', 'has', 'have', 
+                            'had', 'having'],
+            
+            # Location relationships
+            'located_in': ['located', 'locates', 'found', 'find', 'situated', 'position', 
+                          'positioned', 'place', 'placed'],
+            
+            # Temporal relationships
+            'precede': ['precedes', 'preceded', 'before', 'prior', 'earlier'],
+            'follow': ['follows', 'followed', 'after', 'subsequent', 'later'],
+            
+            # Association relationships
+            'related_to': ['relate', 'relates', 'related', 'relating', 'associate', 'associates', 
+                          'associated', 'associating', 'connect', 'connects', 'connected', 
+                          'connecting', 'link', 'links', 'linked', 'linking'],
+            
+            # Creation relationships
+            'create': ['creates', 'created', 'creating', 'generate', 'generates', 'generated', 
+                      'generating', 'produce', 'produces', 'produced', 'producing', 'make', 
+                      'makes', 'made', 'making'],
+            
+            # Usage relationships
+            'use': ['uses', 'used', 'using', 'employ', 'employs', 'employed', 'employing', 
+                   'utilize', 'utilizes', 'utilized', 'utilizing', 'apply', 'applies', 
+                   'applied', 'applying'],
+            
+            # Increase/Decrease relationships
+            'increase': ['increases', 'increased', 'increasing', 'raise', 'raises', 'raised', 
+                        'raising', 'grow', 'grows', 'grew', 'growing', 'enhance', 'enhances', 
+                        'enhanced'],
+            'decrease': ['decreases', 'decreased', 'decreasing', 'reduce', 'reduces', 'reduced', 
+                        'reducing', 'lower', 'lowers', 'lowered', 'lowering', 'diminish', 
+                        'diminishes', 'diminished'],
+            
+            # Ownership/Possession
+            'own': ['owns', 'owned', 'owning', 'possess', 'possesses', 'possessed', 'possessing', 
+                   'belong', 'belongs', 'belonged', 'belonging'],
+            
+            # Comparison
+            'similar_to': ['similar', 'like', 'alike', 'resemble', 'resembles', 'resembled', 
+                          'comparable', 'compare', 'compares'],
+            'different_from': ['different', 'differ', 'differs', 'differed', 'unlike', 'contrast', 
+                              'contrasts', 'contrasted'],
+        }
+        
+        # Reverse mapping for quick lookup
+        self.predicate_to_canonical = {}
+        for canonical, synonyms in self.predicate_synonyms.items():
+            for syn in synonyms:
+                self.predicate_to_canonical[syn] = canonical
+            self.predicate_to_canonical[canonical] = canonical
+    
+    def normalize_predicate(self, predicate: str) -> str:
+        """Normalize a predicate to its canonical form"""
+        predicate_lower = predicate.lower().strip()
+        
+        # Lemmatize the predicate
+        doc = self.nlp(predicate_lower)
+        if len(doc) > 0:
+            lemma = doc[0].lemma_
+        else:
+            lemma = predicate_lower
+        
+        # Check if it's in our synonym mapping
+        if lemma in self.predicate_to_canonical:
+            return self.predicate_to_canonical[lemma]
+        elif predicate_lower in self.predicate_to_canonical:
+            return self.predicate_to_canonical[predicate_lower]
+        
+        # Return lemmatized form if not in mapping
+        return lemma
+    
+    def consolidate_edges(self, graph: nx.DiGraph) -> nx.DiGraph:
+        """
+        Consolidate edges by merging similar predicates between same node pairs
+        """
+        print("Consolidating edges...")
+        
+        # Dictionary to store consolidated edges: (source, target) -> {predicate: count}
+        edge_groups = defaultdict(lambda: defaultdict(int))
+        edge_sources = defaultdict(lambda: defaultdict(list))  # Track source chunks
+        
+        # Group edges by node pairs
+        for source, target, data in graph.edges(data=True):
+            predicate = data.get('label', 'related_to')
+            normalized_pred = self.normalize_predicate(predicate)
+            
+            edge_groups[(source, target)][normalized_pred] += 1
+            if 'source_chunks' in data:
+                edge_sources[(source, target)][normalized_pred].extend(data['source_chunks'])
+        
+        # Build consolidated graph
+        consolidated_graph = nx.DiGraph()
+        
+        # Add all nodes with their attributes
+        for node, attrs in graph.nodes(data=True):
+            consolidated_graph.add_node(node, **attrs)
+        
+        # Add consolidated edges
+        for (source, target), predicates in edge_groups.items():
+            # Choose the most frequent predicate as the canonical one
+            canonical_predicate = max(predicates.items(), key=lambda x: x[1])[0]
+            total_count = sum(predicates.values())
+            
+            # Collect all source chunks
+            all_sources = []
+            for pred, sources in edge_sources[(source, target)].items():
+                all_sources.extend(sources)
+            
+            consolidated_graph.add_edge(
+                source, 
+                target, 
+                label=canonical_predicate,
+                weight=total_count,
+                merged_predicates=list(predicates.keys()),
+                source_chunks=list(set(all_sources))
+            )
+        
+        original_edges = graph.number_of_edges()
+        consolidated_edges = consolidated_graph.number_of_edges()
+        reduction = ((original_edges - consolidated_edges) / original_edges * 100) if original_edges > 0 else 0
+        
+        print(f"Edge consolidation complete:")
+        print(f"  Original edges: {original_edges}")
+        print(f"  Consolidated edges: {consolidated_edges}")
+        print(f"  Reduction: {reduction:.1f}%")
+        
+        return consolidated_graph
+    
+    def detect_redundant_paths(self, graph: nx.DiGraph) -> List[Tuple[str, str, str]]:
+        """
+        Identify redundant paths where A->B->C and A->C exist with similar predicates
+        Returns list of edges that could potentially be removed
+        """
+        print("Detecting redundant paths...")
+        redundant_edges = []
+        
+        for node in tqdm(list(graph.nodes()), desc="Checking paths"):
+            # Get all paths of length 2 from this node
+            for target in graph.successors(node):
+                for intermediate in graph.successors(target):
+                    if intermediate == node:  # Skip cycles back to source
+                        continue
+                    
+                    # Check if direct edge exists
+                    if graph.has_edge(node, intermediate):
+                        # Get predicates
+                        direct_pred = graph[node][intermediate].get('label', '')
+                        indirect_pred1 = graph[node][target].get('label', '')
+                        indirect_pred2 = graph[target][intermediate].get('label', '')
+                        
+                        # Check if predicates are related (same or similar)
+                        if (direct_pred == indirect_pred1 or 
+                            direct_pred == indirect_pred2 or
+                            indirect_pred1 == indirect_pred2):
+                            redundant_edges.append((node, intermediate, direct_pred))
+        
+        print(f"Found {len(redundant_edges)} potentially redundant edges")
+        return redundant_edges
+
+
+class SemanticNodeMerger:
+    """Merge semantically similar nodes using embeddings and context"""
+    
+    def __init__(self, nlp):
+        self.nlp = nlp
+    
+    def compute_node_similarity(self, node1: str, node2: str, 
+                                contexts1: List[str], contexts2: List[str]) -> float:
+        """
+        Compute semantic similarity between two nodes using:
+        1. String similarity
+        2. Embedding similarity
+        3. Context overlap
+        """
+        # String similarity
+        string_sim = SequenceMatcher(None, node1.lower(), node2.lower()).ratio()
+        
+        # Embedding similarity
+        doc1 = self.nlp(node1)
+        doc2 = self.nlp(node2)
+        
+        if doc1.has_vector and doc2.has_vector:
+            embedding_sim = doc1.similarity(doc2)
+        else:
+            embedding_sim = 0.0
+        
+        # Context similarity (if available)
+        context_sim = 0.0
+        if contexts1 and contexts2:
+            # Compare contexts using embeddings
+            ctx1_text = " ".join(contexts1[:3])[:1000]
+            ctx2_text = " ".join(contexts2[:3])[:1000]
+            
+            ctx1_doc = self.nlp(ctx1_text)
+            ctx2_doc = self.nlp(ctx2_text)
+            
+            if ctx1_doc.has_vector and ctx2_doc.has_vector:
+                context_sim = ctx1_doc.similarity(ctx2_doc)
+        
+        # Weighted combination
+        final_sim = (string_sim * 0.3 + embedding_sim * 0.5 + context_sim * 0.2)
+        
+        return final_sim
+    
+    def detect_hierarchical_relationships(self, nodes: List[str]) -> Dict[str, str]:
+        """
+        Detect hierarchical relationships where specific terms should merge into general ones
+        E.g., "diesel emissions" -> "emissions"
+        """
+        print("Detecting hierarchical relationships...")
+        hierarchy_map = {}
+        
+        # Sort by length (longer terms might be more specific)
+        sorted_nodes = sorted(nodes, key=len, reverse=True)
+        
+        for i, specific_node in enumerate(tqdm(sorted_nodes, desc="Finding hierarchies")):
+            specific_words = set(specific_node.lower().split())
+            
+            # Look for potential parent terms
+            for general_node in sorted_nodes[i+1:]:
+                general_words = set(general_node.lower().split())
+                
+                # Check if general term is subset of specific term
+                if general_words.issubset(specific_words) and len(general_words) > 0:
+                    # Calculate how much more specific the term is
+                    specificity_ratio = len(specific_words) / len(general_words)
+                    
+                    # Only merge if reasonably more specific (not just one extra word on very short terms)
+                    if specificity_ratio <= 2.0 or len(specific_words) - len(general_words) <= 2:
+                        # Check if the general term appears at start or end (more likely to be the core concept)
+                        specific_lower = specific_node.lower()
+                        general_lower = general_node.lower()
+                        
+                        if (specific_lower.endswith(general_lower) or 
+                            specific_lower.startswith(general_lower) or
+                            general_lower in specific_lower):
+                            hierarchy_map[specific_node] = general_node
+                            break
+        
+        print(f"Found {len(hierarchy_map)} hierarchical relationships")
+        return hierarchy_map
+    
+    def find_semantic_clusters(self, node_tracker: NodeMetadataTracker, 
+                              similarity_threshold: float = 0.85) -> Dict[str, str]:
+        """
+        Find clusters of semantically similar nodes and merge them
+        """
+        print("Finding semantic clusters...")
+        
+        nodes = list(node_tracker.node_data.keys())
+        merge_map = {}
+        processed = set()
+        
+        for i, node1 in enumerate(tqdm(nodes, desc="Clustering nodes")):
+            if node1 in processed:
+                continue
+            
+            data1 = node_tracker.node_data[node1]
+            contexts1 = data1.get("contexts", [])
+            
+            cluster = [node1]
+            
+            for node2 in nodes[i+1:]:
+                if node2 in processed:
+                    continue
+                
+                data2 = node_tracker.node_data[node2]
+                contexts2 = data2.get("contexts", [])
+                
+                # Compute similarity
+                similarity = self.compute_node_similarity(node1, node2, contexts1, contexts2)
+                
+                if similarity >= similarity_threshold:
+                    cluster.append(node2)
+                    processed.add(node2)
+            
+            # If we found a cluster, choose canonical form
+            if len(cluster) > 1:
+                # Choose the most frequent node as canonical
+                canonical = max(cluster, key=lambda n: node_tracker.node_data[n]["appearances"])
+                
+                for node in cluster:
+                    if node != canonical:
+                        merge_map[node] = canonical
+            
+            processed.add(node1)
+        
+        print(f"Found {len(merge_map)} nodes to merge in semantic clusters")
+        return merge_map
+
+
 class KnowledgeGraphBuilder:
     """Build knowledge graph from processed documents using rule-based methods"""
     
@@ -72,6 +394,10 @@ class KnowledgeGraphBuilder:
         self.nlp = spacy.load(settings.SPACY_MODEL)
         self.node_tracker = NodeMetadataTracker()
         self.graph = nx.DiGraph()
+        
+        # Initialize consolidation modules
+        self.edge_consolidator = EdgeConsolidator(self.nlp)
+        self.node_merger = SemanticNodeMerger(self.nlp)
         
         # Domain-specific patterns for relationships
         self.causal_patterns = [
@@ -106,7 +432,9 @@ class KnowledgeGraphBuilder:
     
     def build_knowledge_graph(
         self,
-        chunks: List[Dict[str, Any]]
+        chunks: List[Dict[str, Any]],
+        enable_consolidation: bool = True,
+        semantic_similarity_threshold: float = 0.85
     ) -> Tuple[nx.DiGraph, Dict[str, Any]]:
         print("Building knowledge graph...")
         
@@ -124,15 +452,52 @@ class KnowledgeGraphBuilder:
             if node in self.node_tracker.node_data:
                 self.node_tracker.node_data[node]["llm_type"] = node_type
         
-        # Stage 3: Detect aliases
+        # Stage 3: Detect aliases (basic)
         aliases_map = self._detect_aliases(list(self.node_tracker.node_data.keys()))
         
         for original, canonical in aliases_map.items():
             if original in self.node_tracker.node_data:
                 self.node_tracker.node_data[original]["canonical_name"] = canonical
         
-        # Stage 4: Build final graph
-        self._build_final_graph(all_triple_contexts)
+        # Stage 4: Build initial graph
+        self._build_initial_graph(all_triple_contexts)
+        
+        print(f"Initial graph: {self.graph.number_of_nodes()} nodes, {self.graph.number_of_edges()} edges")
+        
+        # Stage 5: Enhanced consolidation (NEW)
+        if enable_consolidation:
+            print("\n=== Starting Graph Consolidation ===")
+            
+            # 5a: Consolidate edges with similar predicates
+            self.graph = self.edge_consolidator.consolidate_edges(self.graph)
+            
+            # 5b: Detect and optionally remove redundant paths
+            redundant_edges = self.edge_consolidator.detect_redundant_paths(self.graph)
+            # Note: We're just detecting, not removing. You can decide what to do with these.
+            
+            # 5c: Find hierarchical relationships
+            hierarchy_map = self.node_merger.detect_hierarchical_relationships(
+                list(self.graph.nodes())
+            )
+            
+            # 5d: Find semantic clusters
+            semantic_map = self.node_merger.find_semantic_clusters(
+                self.node_tracker, 
+                similarity_threshold=semantic_similarity_threshold
+            )
+            
+            # 5e: Merge nodes based on hierarchy and semantic similarity
+            all_merges = {**hierarchy_map, **semantic_map}
+            if all_merges:
+                self.graph = self._merge_nodes(self.graph, all_merges)
+                
+                # Update node tracker canonical names
+                for original, canonical in all_merges.items():
+                    if original in self.node_tracker.node_data:
+                        self.node_tracker.node_data[original]["canonical_name"] = canonical
+            
+            print(f"\nFinal graph: {self.graph.number_of_nodes()} nodes, {self.graph.number_of_edges()} edges")
+            print("=== Consolidation Complete ===\n")
         
         # Get metadata
         node_metadata = {
@@ -140,9 +505,60 @@ class KnowledgeGraphBuilder:
             for n in self.node_tracker.node_data
         }
         
-        print(f"Knowledge graph built: {self.graph.number_of_nodes()} nodes, {self.graph.number_of_edges()} edges")
+        # Save consolidated graph
+        self._save_consolidated_graph()
         
         return self.graph, node_metadata
+    
+    def _merge_nodes(self, graph: nx.DiGraph, merge_map: Dict[str, str]) -> nx.DiGraph:
+        """
+        Merge nodes in the graph according to merge_map
+        """
+        print(f"Merging {len(merge_map)} nodes...")
+        
+        merged_graph = nx.DiGraph()
+        
+        # Add all nodes that aren't being merged away
+        for node, attrs in graph.nodes(data=True):
+            if node not in merge_map:
+                merged_graph.add_node(node, **attrs)
+        
+        # Add canonical nodes for merged nodes (if not already present)
+        for canonical in set(merge_map.values()):
+            if not merged_graph.has_node(canonical):
+                if graph.has_node(canonical):
+                    merged_graph.add_node(canonical, **graph.nodes[canonical])
+                else:
+                    # Create node if it doesn't exist
+                    merged_graph.add_node(canonical)
+        
+        # Redirect edges
+        for source, target, data in graph.edges(data=True):
+            # Map source and target to their canonical forms
+            canonical_source = merge_map.get(source, source)
+            canonical_target = merge_map.get(target, target)
+            
+            # Skip self-loops
+            if canonical_source == canonical_target:
+                continue
+            
+            # If edge already exists, merge the weights and source chunks
+            if merged_graph.has_edge(canonical_source, canonical_target):
+                existing_data = merged_graph[canonical_source][canonical_target]
+                existing_weight = existing_data.get('weight', 1)
+                new_weight = data.get('weight', 1)
+                
+                existing_sources = existing_data.get('source_chunks', [])
+                new_sources = data.get('source_chunks', [])
+                
+                merged_graph[canonical_source][canonical_target]['weight'] = existing_weight + new_weight
+                merged_graph[canonical_source][canonical_target]['source_chunks'] = list(
+                    set(existing_sources + new_sources)
+                )
+            else:
+                merged_graph.add_edge(canonical_source, canonical_target, **data)
+        
+        return merged_graph
     
     def _extract_triples(
         self,
@@ -461,29 +877,52 @@ class KnowledgeGraphBuilder:
         
         return False
     
-    def _build_final_graph(
+    def _build_initial_graph(
         self,
         all_triple_contexts: List[Tuple]
     ):
-        print("Building final graph...")
+        print("Building initial graph...")
+        
+        for (s, p, o), chunk_id, chunk_type in all_triple_contexts:
+            s_meta = self.node_tracker.get_node_metadata(s)
+            o_meta = self.node_tracker.get_node_metadata(o)
+            
+            s_canon = s_meta["canonical_name"]
+            o_canon = o_meta["canonical_name"]
+            
+            # Add edge with source information
+            if self.graph.has_edge(s_canon, o_canon):
+                # Accumulate source chunks
+                existing_sources = self.graph[s_canon][o_canon].get('source_chunks', [])
+                self.graph[s_canon][o_canon]['source_chunks'] = existing_sources + [chunk_id]
+            else:
+                self.graph.add_edge(s_canon, o_canon, label=p, source_chunks=[chunk_id])
+    
+    def _save_consolidated_graph(self):
+        """Save the consolidated graph to JSONL format"""
+        print(f"Saving consolidated graph to {settings.KG_JSONL_PATH}...")
         
         with open(settings.KG_JSONL_PATH, "w", encoding="utf-8") as f:
-            for (s, p, o), chunk_id, chunk_type in all_triple_contexts:
-                s_meta = self.node_tracker.get_node_metadata(s)
-                o_meta = self.node_tracker.get_node_metadata(o)
+            for source, target, data in self.graph.edges(data=True):
+                s_meta = self.node_tracker.get_node_metadata(source)
+                o_meta = self.node_tracker.get_node_metadata(target)
                 
-                s_canon = s_meta["canonical_name"]
-                o_canon = o_meta["canonical_name"]
-                
-                self.graph.add_edge(s_canon, o_canon, label=p)
-                
-                f.write(json.dumps({
-                    "subject": s,
-                    "subject_canonical": s_canon,
+                entry = {
+                    "subject": source,
+                    "subject_canonical": s_meta["canonical_name"],
                     "subject_type": s_meta["type"],
-                    "predicate": p,
-                    "object": o,
-                    "object_canonical": o_canon,
+                    "predicate": data.get('label', 'related_to'),
+                    "object": target,
+                    "object_canonical": o_meta["canonical_name"],
                     "object_type": o_meta["type"],
-                    "source_chunk": chunk_id
-                }) + "\n")
+                    "weight": data.get('weight', 1),
+                    "source_chunks": data.get('source_chunks', [])
+                }
+                
+                # Add merged predicates if available
+                if 'merged_predicates' in data:
+                    entry['merged_predicates'] = data['merged_predicates']
+                
+                f.write(json.dumps(entry) + "\n")
+        
+        print(f"Saved {self.graph.number_of_edges()} edges to {settings.KG_JSONL_PATH}")
