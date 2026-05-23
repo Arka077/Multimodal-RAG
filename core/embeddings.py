@@ -2,6 +2,7 @@
 Embedding generation and management
 """
 import numpy as np
+import torch
 from typing import List
 from tqdm.auto import tqdm
 from sentence_transformers import SentenceTransformer
@@ -14,9 +15,13 @@ class EmbeddingManager:
     
     def __init__(self):
         print(f"Loading embedding model: {settings.EMBEDDING_MODEL}")
-        self.model = SentenceTransformer(settings.EMBEDDING_MODEL)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        # Load model directly to the target device to avoid meta tensor issues
+        self.model = SentenceTransformer(settings.EMBEDDING_MODEL, device=device)
+        
         self.dimension = self.model.get_sentence_embedding_dimension()
-        print(f"Model loaded. Embedding dimension: {self.dimension}")
+        print(f"Model loaded on {device}. Embedding dimension: {self.dimension}")
     
     def embed_texts(
         self,
