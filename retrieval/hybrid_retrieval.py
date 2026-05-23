@@ -35,9 +35,10 @@ class HybridRetriever:
         self.nlp = spacy.load(settings.SPACY_MODEL)
         self.cross_encoder = CrossEncoder(
             settings.CROSS_ENCODER_MODEL,
-            max_length=512,
-            device=settings.DEVICE
+            max_length=512
         )
+        if settings.DEVICE != 'meta':
+            self.cross_encoder = self.cross_encoder.to(settings.DEVICE)
     
     def retrieve(
         self,
